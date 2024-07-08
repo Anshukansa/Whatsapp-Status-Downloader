@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Status Saver</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>WhatsApp Status Saver</h1>
+        <button id="permissionButton">Grant Permission</button>
+        <div id="statusContainer" class="gallery">
+            <!-- Status items will be injected here by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Modal for previewing status -->
+    <div id="previewModal" class="modal">
+        <span id="closeModal" class="close">&times;</span>
+        <button id="prevStatus" class="navButton">&lt;</button>
+        <button id="nextStatus" class="navButton">&gt;</button>
+        <button id="downloadButton" class="downloadButton">Download</button>
+        <img id="modalContent" class="modal-content">
+        <video id="modalVideoContent" class="modal-content" controls></video>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
