@@ -5,45 +5,56 @@ let statuses = [];
 
 async function requestPermission() {
     try {
-        // Request directory access
-        const directoryHandle = await window.showDirectoryPicker();
-        if (directoryHandle) {
-            loadStatuses(directoryHandle);
+        // Request file access
+        const fileHandles = await window.showOpenFilePicker({
+            types: [
+                {
+                    description: 'Images and Videos',
+                    accept: {
+                        'image/*': ['.png', '.gif', '.jpeg', '.jpg'],
+                        'video/*': ['.mp4', '.avi', '.mov']
+                    }
+                }
+            ],
+            multiple: true
+        });
+        
+        if (fileHandles.length > 0) {
+            console.log('Files selected:', fileHandles);
+            loadStatuses(fileHandles);
         } else {
-            alert('No directory selected.');
+            alert('No files selected.');
         }
     } catch (error) {
-        console.error('Error accessing directory:', error);
-        alert('Failed to access the directory. Please make sure you are using a supported browser.');
+        console.error('Error accessing files:', error);
+        alert('Failed to access files. Please make sure you are using a supported browser.');
     }
 }
 
-async function loadStatuses(directoryHandle) {
+async function loadStatuses(fileHandles) {
     const statusContainer = document.getElementById('statusContainer');
     statusContainer.innerHTML = '';
     statuses = [];
 
-    for await (const entry of directoryHandle.values()) {
-        if (entry.kind === 'file') {
-            try {
-                const file = await entry.getFile();
-                const url = URL.createObjectURL(file);
-                statuses.push({ url, type: file.type, name: entry.name });
+    for (const fileHandle of fileHandles) {
+        try {
+            const file = await fileHandle.getFile();
+            const url = URL.createObjectURL(file);
+            statuses.push({ url, type: file.type, name: file.name });
 
-                const statusElement = document.createElement('div');
-                statusElement.className = 'status-item';
+            const statusElement = document.createElement('div');
+            statusElement.className = 'status-item';
 
-                if (file.type.startsWith('video/')) {
-                    statusElement.innerHTML = `<video src="${url}" width="100" height="100" controls muted></video>`;
-                } else if (file.type.startsWith('image/')) {
-                    statusElement.innerHTML = `<img src="${url}" width="100" height="100">`;
-                }
-
-                statusElement.addEventListener('click', () => openModal(url, file.type, entry.name));
-                statusContainer.appendChild(statusElement);
-            } catch (fileError) {
-                console.error('Error accessing file:', fileError);
+            if (file.type.startsWith('video/')) {
+                statusElement.innerHTML = `<video src="${url}" width="100" height="100" controls muted></video>`;
+            } else if (file.type.startsWith('image/')) {
+                statusElement.innerHTML = `<img src="${url}" width="100" height="100">`;
             }
+
+            statusElement.addEventListener('click', () => openModal(url, file.type, file.name));
+            statusContainer.appendChild(statusElement);
+        } catch (fileError) {
+            console.error('Error accessing file:', fileError);
         }
     }
 }
