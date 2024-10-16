@@ -31,7 +31,7 @@ def load_excel(file_path):
         return df
     except Exception as e:
         log_error(f"Error loading Excel: {e}")
-        return None
+        return pd.DataFrame()  # Return an empty DataFrame on error
 
 # Save Excel file
 def save_excel(df, file_path):
@@ -40,11 +40,38 @@ def save_excel(df, file_path):
     except Exception as e:
         log_error(f"Error saving Excel: {e}")
 
+# Create main menu keyboard
+def main_menu_keyboard():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add('/purchase', '/update_ad', '/sell', '/report')
+    return markup
+
 # Start command
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     if is_user_allowed(message):
-        bot.send_message(message.chat.id, "Welcome! Use /help to see the available commands.")
+        bot.send_message(
+            message.chat.id, 
+            "Welcome! Use the buttons below to navigate.", 
+            reply_markup=main_menu_keyboard()
+        )
+    else:
+        bot.send_message(message.chat.id, "Access Denied.")
+
+# Handle button presses
+@bot.message_handler(func=lambda message: True)
+def handle_commands(message):
+    if is_user_allowed(message):
+        if message.text == '/purchase':
+            handle_purchase(message)
+        elif message.text == '/update_ad':
+            handle_update_ad(message)
+        elif message.text == '/sell':
+            handle_sell_entry(message)
+        elif message.text == '/report':
+            generate_report(message)
+        else:
+            bot.send_message(message.chat.id, "Invalid command. Please use the buttons to navigate.")
     else:
         bot.send_message(message.chat.id, "Access Denied.")
 
@@ -205,69 +232,55 @@ def validate_and_format_date(input_date, purchase_date=None):
             return (datetime.now(australia_tz) - timedelta(days=1)).strftime(f"%d-%m-{current_year}")
         else:
             day, month = map(int, input_date.split('-'))
-            date = datetime(current_year, month, day)
-            if purchase_date:
-                purchase_date_obj = datetime.strptime(purchase_date, "%d-%m-%Y")
-                return date.strftime("%d-%m-%Y") if date >= purchase_date_obj else None
-            return date.strftime("%d-%m-%Y")
+            return datetime(current_year, month, day).strftime(f"%d-%m-{current_year}")
     except Exception:
         return None
 
-# CONFIRM AND UPDATE
+# Confirm and update functions
 def confirm_and_update(message, update_function, *args):
-    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-    markup.add('Yes', 'No')
-    bot.send_message(message.chat.id, "Confirm update? (Yes/No)", reply_markup=markup)
-    bot.register_next_step_handler(message, confirm_choice, update_function, *args)
+    bot.send_message(message.chat.id, f"Are you sure you want to proceed with this update? Type 'yes' to confirm, or 'no' to cancel.")
+    bot.register_next_step_handler(message, lambda m: handle_confirmation(m, update_function, *args))
 
-def confirm_choice(message, update_function, *args):
+def handle_confirmation(message, update_function, *args):
     if message.text.lower() == 'yes':
         update_function(*args)
-        save_excel(df, excel_file_path)
         bot.send_message(message.chat.id, "Update successful!")
-    else:
+        save_excel(df, excel_file_path)  # Save the updated DataFrame to Excel
+    elif message.text.lower() == 'no':
         bot.send_message(message.chat.id, "Update cancelled.")
+    else:
+        bot.send_message(message.chat.id, "Invalid response. Please type 'yes' or 'no'.")
 
-# FUNCTION TO ADD A PURCHASE ENTRY
+# Placeholder update functions
 def purchase_entry(serial_number, model, storage, battery_health, description, purchase_price, purchase_date):
     global df
-    new_row = {
+    new_entry = {
         'Serial Number': serial_number,
         'Model': model,
         'Storage': storage,
         'Battery Health': battery_health,
         'Description': description,
         'Purchase Price': purchase_price,
-        'Purchase Date': purchase_date
+        'Purchase Date': purchase_date,
+        # Add other necessary fields
     }
-    df = df.append(new_row, ignore_index=True)
+    df = df.append(new_entry, ignore_index=True)
 
-# FUNCTION TO UPDATE AD ENTRY
 def update_ad_entry(serial_number, ad_date):
     global df
-    index = df[df['Serial Number'] == serial_number].index
-    if not index.empty:
-        df.at[index[0], 'Ad Date'] = ad_date
-        save_excel(df, excel_file_path)
+    df.loc[df['Serial Number'] == serial_number, 'Ad Date'] = ad_date
 
-# FUNCTION TO UPDATE SELL ENTRY
 def update_sell_entry(serial_number, sell_price, sell_date):
     global df
-    index = df[df['Serial Number'] == serial_number].index
-    if not index.empty:
-        df.at[index[0], 'Sell Price'] = sell_price
-        df.at[index[0], 'Sell Date'] = sell_date
-        save_excel(df, excel_file_path)
+    df.loc[df['Serial Number'] == serial_number, 'Sell Price'] = sell_price
+    df.loc[df['Serial Number'] == serial_number, 'Sell Date'] = sell_date
 
-# REPORT GENERATION
+# Generate report function
 @bot.message_handler(commands=['report'])
 def generate_report(message):
     if is_user_allowed(message):
-        total_items = len(df)
-        sold_items = df[df['Sell Price'].notnull()].shape[0]
-        unsold_items = total_items - sold_items
-        report = f"Total Items: {total_items}\nSold Items: {sold_items}\nUnsold Items: {unsold_items}"
-        bot.send_message(message.chat.id, report)
+        report = df.to_string(index=False)
+        bot.send_message(message.chat.id, f"Current Inventory:\n{report}")
     else:
         bot.send_message(message.chat.id, "Access Denied.")
 
