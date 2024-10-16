@@ -91,25 +91,39 @@ def update_sell_entry(serial_number, sell_price, sell_date):
     else:
         print(f"Serial Number {serial_number} not found in the DataFrame.")
 
+
 # CONFIRM AND UPDATE FUNCTION
-def confirm_and_update(message, update_function, *args):
-    # This will send a confirmation message and if confirmed, call the appropriate update function
-    bot.send_message(message.chat.id, "Entry added successfully.")
-    update_function(*args)
-    show_full_entry(message.chat.id, *args)  # After update, show full entry
+def confirm_and_update(message, update_function, serial_number, *args):
+    # Call the update function with necessary arguments
+    update_function(serial_number, *args)
+
+    # Show full entry details after the update
+    show_full_entry(message.chat.id, serial_number)
+
 
 # SHOW FULL ENTRY FUNCTION
-def show_full_entry(chat_id, serial_number, model, storage, battery_health, description, purchase_price, purchase_date):
+def show_full_entry(chat_id, serial_number):
+    global df
+    # Fetch the full entry corresponding to the serial number
+    entry = df[df['Serial Number'] == serial_number].iloc[0]
+
+    # Format the entry details nicely
     entry_details = (
-        f"Serial Number: {serial_number}\n"
-        f"Model: {model}\n"
-        f"Storage: {storage}\n"
-        f"Battery Health: {battery_health}%\n"
-        f"Description: {description}\n"
-        f"Purchase Price: {purchase_price}\n"
-        f"Purchase Date: {purchase_date.strftime('%d-%m-%Y')}\n"
+        f"✅ *Entry Details Updated*:\n"
+        f"🔢 *Serial Number*: {entry['Serial Number']}\n"
+        f"📱 *Model*: {entry['Model']}\n"
+        f"💾 *Storage*: {entry['Storage']} GB\n"
+        f"🔋 *Battery Health*: {entry['Battery Health']}%\n"
+        f"💬 *Description*: {entry['Description']}\n"
+        f"💵 *Purchase Price*: ${entry['Purchase Price']}\n"
+        f"💰 *Sell Price*: ${entry['Sell Price']} (if available)\n"
+        f"🗓 *Purchase Date*: {entry['Purchase Date'].strftime('%d-%m-%Y') if pd.notnull(entry['Purchase Date']) else 'N/A'}\n"
+        f"🗓 *Ad Date*: {entry['Ad Date'].strftime('%d-%m-%Y') if pd.notnull(entry['Ad Date']) else 'N/A'}\n"
+        f"🗓 *Sell Date*: {entry['Sell Date'].strftime('%d-%m-%Y') if pd.notnull(entry['Sell Date']) else 'N/A'}\n"
     )
-    bot.send_message(chat_id, f"Full Entry Details:\n{entry_details}")
+
+    # Send the nicely formatted entry details
+    bot.send_message(chat_id, entry_details, parse_mode='Markdown')
 
 # Cancel operation anytime
 def cancel_operation(message):
@@ -309,14 +323,14 @@ def validate_and_format_date(input_date, purchase_date=None):
 def serial_number_exists(serial_number):
     return serial_number in df['Serial Number'].values
 
-def confirm_and_update(message, update_function, *args):
-    # This will send a confirmation message and if confirmed, call the appropriate update function
-    update_function(*args)
-    show_full_entry(message.chat.id, *args)  # After update, show full entry
+# def confirm_and_update(message, update_function, *args):
+#     # This will send a confirmation message and if confirmed, call the appropriate update function
+#     update_function(*args)
+#     show_full_entry(message.chat.id, *args)  # After update, show full entry
 
-def show_full_entry(chat_id, *args):
-    # Placeholder function for displaying the full entry after updating
-    bot.send_message(chat_id, "Full entry details: " + str(args))
+# def show_full_entry(chat_id, *args):
+#     # Placeholder function for displaying the full entry after updating
+#     bot.send_message(chat_id, "Full entry details: " + str(args))
 
 # REPORT
 @bot.message_handler(func=lambda message: message.text == 'Report')
