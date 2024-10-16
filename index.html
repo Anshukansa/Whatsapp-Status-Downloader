@@ -336,11 +336,13 @@ def serial_number_exists(serial_number):
 @bot.message_handler(func=lambda message: message.text == 'Report')
 def handle_report(message):
     if is_user_allowed(message):
-        bot.send_message(message.chat.id, "Generating report...")
-        # Placeholder for report logic
-        bot.send_message(message.chat.id, "Report generated.")
+        total_items = len(df)
+        sold_items = df[df['Sell Price'].notnull()].shape[0]
+        unsold_items = total_items - sold_items
+        report = f"Total Items: {total_items}\nSold Items: {sold_items}\nUnsold Items: {unsold_items}"
+        bot.send_message(message.chat.id, report)
     else:
         bot.send_message(message.chat.id, "Access Denied.")
-
+        
 # Run the bot
 bot.polling()
