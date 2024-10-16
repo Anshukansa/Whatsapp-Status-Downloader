@@ -4,11 +4,13 @@ import pandas as pd
 from datetime import datetime, timedelta
 import pytz
 import logging
+import os
 
 # Bot configuration
-BOT_API_TOKEN = "YOUR_BOT_API_TOKEN"  # Replace with your actual Bot API token
-ALLOWED_USERS = [123456789, 987654321]  # Replace with actual allowed user IDs
-excel_file_path = "inventory.xlsx"  # Path to the Excel file
+BOT_API_TOKEN = "7629707339:AAEHormLX7UhRdD54n5D3VLfjGViCAN7CJY"  # Replace with your actual Bot API token
+ALLOWED_USERS = [7932502148]  # Replace with actual allowed user IDs
+excel_file_path = "Phone_Management.xlsx"  # Path to the Excel file
+
 
 # Logging setup
 logging.basicConfig(filename='bot_errors.log', level=logging.ERROR)
@@ -24,21 +26,90 @@ def log_error(error_message):
 def is_user_allowed(message):
     return message.from_user.id in ALLOWED_USERS
 
-# Load Excel file
+# Function to load Excel file
 def load_excel(file_path):
-    try:
+    if os.path.exists(file_path):
         df = pd.read_excel(file_path)
         return df
-    except Exception as e:
-        log_error(f"Error loading Excel: {e}")
-        return None
+    else:
+        # Initialize an empty DataFrame with the required columns if the file doesn't exist
+        columns = ["Index", "Status", "Serial Number", "Model", "Storage", "Battery Health", "Description",
+                   "Purchase Price", "Sell Price", "Profit", "Purchase Date", "Ad Date", "Sell Date"]
+        df = pd.DataFrame(columns=columns)
+        return df
 
-# Save Excel file
+# Function to save DataFrame to Excel
 def save_excel(df, file_path):
-    try:
-        df.to_excel(file_path, index=False)
-    except Exception as e:
-        log_error(f"Error saving Excel: {e}")
+    df.to_excel(file_path, index=False)
+
+# Load or initialize the DataFrame
+df = load_excel(excel_file_path)
+
+# PURCHASE ENTRY FUNCTION
+def purchase_entry(serial_number, model, storage, battery_health, description, purchase_price, purchase_date):
+    global df
+    new_entry = {
+        "Index": len(df) + 1,  # Auto-incremented index
+        "Status": "Not Listed",
+        "Serial Number": serial_number,
+        "Model": model,
+        "Storage": storage,
+        "Battery Health": battery_health,
+        "Description": description,
+        "Purchase Price": purchase_price,
+        "Sell Price": None,
+        "Profit": None,
+        "Purchase Date": purchase_date,
+        "Ad Date": None,
+        "Sell Date": None
+    }
+    # Append the new entry to the DataFrame
+    df = df._append(new_entry, ignore_index=True)
+    # Save to Excel
+    save_excel(df, excel_file_path)
+    print("Purchase entry added and saved to Excel.")
+
+# Function to update Ad Date by Serial Number
+def update_ad_entry(serial_number, ad_date):
+    global df
+    if serial_number in df['Serial Number'].values:
+        df.loc[df['Serial Number'] == serial_number, 'Ad Date'] = ad_date
+        save_excel(df, excel_file_path)
+        print(f"Ad Date updated for Serial Number {serial_number}")
+    else:
+        print(f"Serial Number {serial_number} not found in the DataFrame.")
+
+# Function to update Sell Price and Sell Date by Serial Number
+def update_sell_entry(serial_number, sell_price, sell_date):
+    global df
+    if serial_number in df['Serial Number'].values:
+        # Update both the Sell Price and Sell Date
+        df.loc[df['Serial Number'] == serial_number, 'Sell Price'] = sell_price
+        df.loc[df['Serial Number'] == serial_number, 'Sell Date'] = pd.to_datetime(sell_date)
+        save_excel(df, excel_file_path)
+        print(f"Sell Price and Sell Date updated for Serial Number {serial_number}")
+    else:
+        print(f"Serial Number {serial_number} not found in the DataFrame.")
+
+# CONFIRM AND UPDATE FUNCTION
+def confirm_and_update(message, update_function, *args):
+    # This will send a confirmation message and if confirmed, call the appropriate update function
+    bot.send_message(message.chat.id, "Entry added successfully.")
+    update_function(*args)
+    show_full_entry(message.chat.id, *args)  # After update, show full entry
+
+# SHOW FULL ENTRY FUNCTION
+def show_full_entry(chat_id, serial_number, model, storage, battery_health, description, purchase_price, purchase_date):
+    entry_details = (
+        f"Serial Number: {serial_number}\n"
+        f"Model: {model}\n"
+        f"Storage: {storage}\n"
+        f"Battery Health: {battery_health}%\n"
+        f"Description: {description}\n"
+        f"Purchase Price: {purchase_price}\n"
+        f"Purchase Date: {purchase_date.strftime('%d-%m-%Y')}\n"
+    )
+    bot.send_message(chat_id, f"Full Entry Details:\n{entry_details}")
 
 # Cancel operation anytime
 def cancel_operation(message):
