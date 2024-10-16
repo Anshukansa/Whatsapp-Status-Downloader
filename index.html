@@ -31,7 +31,7 @@ def load_excel(file_path):
         return df
     except Exception as e:
         log_error(f"Error loading Excel: {e}")
-        return pd.DataFrame()  # Return an empty DataFrame on error
+        return None
 
 # Save Excel file
 def save_excel(df, file_path):
@@ -40,57 +40,25 @@ def save_excel(df, file_path):
     except Exception as e:
         log_error(f"Error saving Excel: {e}")
 
-# Create main menu keyboard
-def main_menu_keyboard():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add('/purchase', '/update_ad', '/sell', '/report')
-    return markup
+# Cancel operation anytime
+def cancel_operation(message):
+    if message.text.lower() == "/cancel":
+        bot.send_message(message.chat.id, "Operation canceled. No changes made.")
+        return True
+    return False
 
 # Start command
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     if is_user_allowed(message):
-        bot.send_message(
-            message.chat.id, 
-            "Welcome! Use the buttons below to navigate.", 
-            reply_markup=main_menu_keyboard()
-        )
-    else:
-        bot.send_message(message.chat.id, "Access Denied.")
-
-# Handle button presses
-@bot.message_handler(func=lambda message: True)
-def handle_commands(message):
-    if is_user_allowed(message):
-        if message.text == '/purchase':
-            handle_purchase(message)
-        elif message.text == '/update_ad':
-            handle_update_ad(message)
-        elif message.text == '/sell':
-            handle_sell_entry(message)
-        elif message.text == '/report':
-            generate_report(message)
-        else:
-            bot.send_message(message.chat.id, "Invalid command. Please use the buttons to navigate.")
-    else:
-        bot.send_message(message.chat.id, "Access Denied.")
-
-# Help command
-@bot.message_handler(commands=['help'])
-def send_help(message):
-    if is_user_allowed(message):
-        help_text = """
-        /purchase - Add a new purchase entry
-        /update_ad - Update Ad Date by Serial Number
-        /sell - Update Sell Price and Sell Date by Serial Number
-        /report - Generate a basic report
-        """
-        bot.send_message(message.chat.id, help_text)
+        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+        markup.add('Purchase', 'Update Ad', 'Sell', 'Report')
+        bot.send_message(message.chat.id, "Welcome! Choose an action:", reply_markup=markup)
     else:
         bot.send_message(message.chat.id, "Access Denied.")
 
 # PURCHASE ENTRY
-@bot.message_handler(commands=['purchase'])
+@bot.message_handler(func=lambda message: message.text == 'Purchase')
 def handle_purchase(message):
     if is_user_allowed(message):
         bot.send_message(message.chat.id, "Enter Serial Number:")
@@ -99,16 +67,22 @@ def handle_purchase(message):
         bot.send_message(message.chat.id, "Access Denied.")
 
 def get_serial_number(message):
+    if cancel_operation(message):
+        return
     serial_number = message.text
     bot.send_message(message.chat.id, "Enter Model:")
     bot.register_next_step_handler(message, get_model, serial_number)
 
 def get_model(message, serial_number):
+    if cancel_operation(message):
+        return
     model = message.text
     bot.send_message(message.chat.id, "Enter Storage (e.g., 128):")
     bot.register_next_step_handler(message, get_storage, serial_number, model)
 
 def get_storage(message, serial_number, model):
+    if cancel_operation(message):
+        return
     storage = validate_storage(message.text)
     if storage:
         bot.send_message(message.chat.id, "Enter Battery Health (0-100):")
@@ -118,6 +92,8 @@ def get_storage(message, serial_number, model):
         bot.register_next_step_handler(message, get_storage, serial_number, model)
 
 def get_battery_health(message, serial_number, model, storage):
+    if cancel_operation(message):
+        return
     battery_health = validate_battery_health(message.text)
     if battery_health is not None:
         bot.send_message(message.chat.id, "Enter Description:")
@@ -127,11 +103,15 @@ def get_battery_health(message, serial_number, model, storage):
         bot.register_next_step_handler(message, get_battery_health, serial_number, model, storage)
 
 def get_description(message, serial_number, model, storage, battery_health):
+    if cancel_operation(message):
+        return
     description = message.text
     bot.send_message(message.chat.id, "Enter Purchase Price:")
     bot.register_next_step_handler(message, get_purchase_price, serial_number, model, storage, battery_health, description)
 
 def get_purchase_price(message, serial_number, model, storage, battery_health, description):
+    if cancel_operation(message):
+        return
     purchase_price = validate_price(message.text)
     if purchase_price:
         bot.send_message(message.chat.id, "Enter Purchase Date (dd-mm):")
@@ -141,6 +121,8 @@ def get_purchase_price(message, serial_number, model, storage, battery_health, d
         bot.register_next_step_handler(message, get_purchase_price, serial_number, model, storage, battery_health, description)
 
 def get_purchase_date(message, serial_number, model, storage, battery_health, description, purchase_price):
+    if cancel_operation(message):
+        return
     purchase_date = validate_and_format_date(message.text)
     if purchase_date:
         confirm_and_update(message, purchase_entry, serial_number, model, storage, battery_health, description, purchase_price, purchase_date)
@@ -149,7 +131,7 @@ def get_purchase_date(message, serial_number, model, storage, battery_health, de
         bot.register_next_step_handler(message, get_purchase_date, serial_number, model, storage, battery_health, description, purchase_price)
 
 # AD DATE UPDATE
-@bot.message_handler(commands=['update_ad'])
+@bot.message_handler(func=lambda message: message.text == 'Update Ad')
 def handle_update_ad(message):
     if is_user_allowed(message):
         bot.send_message(message.chat.id, "Enter Serial Number for which you want to update the Ad Date:")
@@ -158,11 +140,19 @@ def handle_update_ad(message):
         bot.send_message(message.chat.id, "Access Denied.")
 
 def get_ad_serial_number(message):
+    if cancel_operation(message):
+        return
     serial_number = message.text
-    bot.send_message(message.chat.id, "Enter Ad Date (dd-mm):")
-    bot.register_next_step_handler(message, get_ad_date, serial_number)
+    if serial_number_exists(serial_number):
+        bot.send_message(message.chat.id, "Enter Ad Date (dd-mm):")
+        bot.register_next_step_handler(message, get_ad_date, serial_number)
+    else:
+        bot.send_message(message.chat.id, "Serial number not found. Please try again.")
+        bot.register_next_step_handler(message, get_ad_serial_number)
 
 def get_ad_date(message, serial_number):
+    if cancel_operation(message):
+        return
     ad_date = validate_and_format_date(message.text)
     if ad_date:
         confirm_and_update(message, update_ad_entry, serial_number, ad_date)
@@ -171,7 +161,7 @@ def get_ad_date(message, serial_number):
         bot.register_next_step_handler(message, get_ad_date, serial_number)
 
 # SELL ENTRY UPDATE
-@bot.message_handler(commands=['sell'])
+@bot.message_handler(func=lambda message: message.text == 'Sell')
 def handle_sell_entry(message):
     if is_user_allowed(message):
         bot.send_message(message.chat.id, "Enter Serial Number for which you want to update Sell Price and Sell Date:")
@@ -180,11 +170,19 @@ def handle_sell_entry(message):
         bot.send_message(message.chat.id, "Access Denied.")
 
 def get_sell_serial_number(message):
+    if cancel_operation(message):
+        return
     serial_number = message.text
-    bot.send_message(message.chat.id, "Enter Sell Price:")
-    bot.register_next_step_handler(message, get_sell_price, serial_number)
+    if serial_number_exists(serial_number):
+        bot.send_message(message.chat.id, "Enter Sell Price:")
+        bot.register_next_step_handler(message, get_sell_price, serial_number)
+    else:
+        bot.send_message(message.chat.id, "Serial number not found. Please try again.")
+        bot.register_next_step_handler(message, get_sell_serial_number)
 
 def get_sell_price(message, serial_number):
+    if cancel_operation(message):
+        return
     sell_price = validate_price(message.text)
     if sell_price:
         bot.send_message(message.chat.id, "Enter Sell Date (dd-mm):")
@@ -194,6 +192,8 @@ def get_sell_price(message, serial_number):
         bot.register_next_step_handler(message, get_sell_price, serial_number)
 
 def get_sell_date(message, serial_number, sell_price):
+    if cancel_operation(message):
+        return
     sell_date = validate_and_format_date(message.text)
     if sell_date:
         confirm_and_update(message, update_sell_entry, serial_number, sell_price, sell_date)
@@ -224,66 +224,38 @@ def validate_price(price):
 def validate_and_format_date(input_date, purchase_date=None):
     try:
         australia_tz = pytz.timezone('Australia/Sydney')
-        current_year = datetime.now(australia_tz).year
+        current_year = datetime.now(australia_tz
 
-        if input_date.lower() == "today":
-            return datetime.now(australia_tz).strftime(f"%d-%m-{current_year}")
-        elif input_date.lower() == "yesterday":
-            return (datetime.now(australia_tz) - timedelta(days=1)).strftime(f"%d-%m-{current_year}")
-        else:
-            day, month = map(int, input_date.split('-'))
-            return datetime(current_year, month, day).strftime(f"%d-%m-{current_year}")
-    except Exception:
+).year
+        date = datetime.strptime(f"{input_date}-{current_year}", "%d-%m-%Y")
+        if purchase_date and date < purchase_date:
+            return None
+        return date
+    except ValueError:
         return None
 
-# Confirm and update functions
+# UTILITY FUNCTIONS
+def serial_number_exists(serial_number):
+    return serial_number in df['Serial Number'].values
+
 def confirm_and_update(message, update_function, *args):
-    bot.send_message(message.chat.id, f"Are you sure you want to proceed with this update? Type 'yes' to confirm, or 'no' to cancel.")
-    bot.register_next_step_handler(message, lambda m: handle_confirmation(m, update_function, *args))
+    # This will send a confirmation message and if confirmed, call the appropriate update function
+    update_function(*args)
+    show_full_entry(message.chat.id, *args)  # After update, show full entry
 
-def handle_confirmation(message, update_function, *args):
-    if message.text.lower() == 'yes':
-        update_function(*args)
-        bot.send_message(message.chat.id, "Update successful!")
-        save_excel(df, excel_file_path)  # Save the updated DataFrame to Excel
-    elif message.text.lower() == 'no':
-        bot.send_message(message.chat.id, "Update cancelled.")
-    else:
-        bot.send_message(message.chat.id, "Invalid response. Please type 'yes' or 'no'.")
+def show_full_entry(chat_id, *args):
+    # Placeholder function for displaying the full entry after updating
+    bot.send_message(chat_id, "Full entry details: " + str(args))
 
-# Placeholder update functions
-def purchase_entry(serial_number, model, storage, battery_health, description, purchase_price, purchase_date):
-    global df
-    new_entry = {
-        'Serial Number': serial_number,
-        'Model': model,
-        'Storage': storage,
-        'Battery Health': battery_health,
-        'Description': description,
-        'Purchase Price': purchase_price,
-        'Purchase Date': purchase_date,
-        # Add other necessary fields
-    }
-    df = df.append(new_entry, ignore_index=True)
-
-def update_ad_entry(serial_number, ad_date):
-    global df
-    df.loc[df['Serial Number'] == serial_number, 'Ad Date'] = ad_date
-
-def update_sell_entry(serial_number, sell_price, sell_date):
-    global df
-    df.loc[df['Serial Number'] == serial_number, 'Sell Price'] = sell_price
-    df.loc[df['Serial Number'] == serial_number, 'Sell Date'] = sell_date
-
-# Generate report function
-@bot.message_handler(commands=['report'])
-def generate_report(message):
+# REPORT
+@bot.message_handler(func=lambda message: message.text == 'Report')
+def handle_report(message):
     if is_user_allowed(message):
-        report = df.to_string(index=False)
-        bot.send_message(message.chat.id, f"Current Inventory:\n{report}")
+        bot.send_message(message.chat.id, "Generating report...")
+        # Placeholder for report logic
+        bot.send_message(message.chat.id, "Report generated.")
     else:
         bot.send_message(message.chat.id, "Access Denied.")
 
-# Load Excel and start the bot
-df = load_excel(excel_file_path)
+# Run the bot
 bot.polling()
